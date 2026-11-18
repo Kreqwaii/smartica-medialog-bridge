@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Коннектор МИС «Медиалог» ↔ Smartica.ai — Интерактивный стенд интеграции</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230f172a'/%3E%3Cpath d='M9 16h4l2.5-6 3.5 12 2.5-6H23' fill='none' stroke='%2338bdf8' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="./styles.css">
+  <script src="./app.js" defer></script>
+</head>
+<body>
+  <header class="top-header">
+    <div class="header-brand">
+      <div class="header-title-row">
+        <h1>Коннектор МИС «Медиалог» ↔ Smartica.ai</h1>
+        <a class="header-code-link" href="./backend/medialog_smartica_client.py" target="_blank" rel="noopener noreferrer">Исходный код Python-модуля</a>
+      </div>
+      <p class="header-subtitle">Outbound HTTPS Launch Pull • Направления • Версионирование правок</p>
+    </div>
+    <div class="header-controls">
+      <label class="case-select-label" for="caseSelect">Клинический кейс:</label>
+      <select id="caseSelect" class="case-select">
+        <option value="therapist">Терапевт: ОРВИ / бронхит</option>
+        <option value="cardio">Кардиолог: АГ II ст.</option>
+        <option value="neuro">Невролог: Люмбоишиалгия</option>
+      </select>
+      <button id="btnResetDemo" class="btn-outline" type="button">Сбросить стенд</button>
+    </div>
+  </header>
+
+  <main class="page-main">
+    <section class="workspace-grid" aria-label="Интерактивный стенд интеграции МИС Медиалог и Smartica.ai">
+      <!-- 1. Левая колонка: МИС Медиалог -->
+      <article class="pane pane-medialog">
+        <header class="pane-header">
+          <h2>Карточка амбулаторного приёма — МИС «Медиалог» 8.x</h2>
+          <div class="mis-meta-grid">
+            <div class="mis-meta-item">
+              <span class="meta-label">ID приёма (PATDIREC):</span>
+              <span id="misEncounterId" class="meta-value">904812</span>
+            </div>
+            <div class="mis-meta-item">
+              <span class="meta-label">Врач:</span>
+              <span id="misDoctorName" class="meta-value">Иванова Е.С. (ivanova@clinic.ru)</span>
+            </div>
+            <div class="mis-meta-item">
+              <span class="meta-label">Шаблон ЭМК:</span>
+              <span id="misTemplateName" class="meta-value">Первичный осмотр терапевта</span>
+            </div>
+          </div>
+        </header>
+
+        <div class="pane-actions">
+          <button id="btnLaunchSmartica" class="btn-primary" type="button">1. Заполнить голосом в Smartica.ai</button>
+          <button id="btnOpenSuggestions" class="btn-outline" type="button" disabled>3. Подобрать направления</button>
+          <button id="btnSaveMedialog" class="btn-success" type="button" disabled>4. Сохранить карту в Медиалоге</button>
+        </div>
+
+        <form class="mis-form" onsubmit="return false;">
+          <div class="mis-field-group">
+            <label for="field_complaints">Жалобы пациента</label>
+            <textarea id="field_complaints" class="mis-field" data-field-id="complaints" rows="2" placeholder="Поле ЭМК пусто — ожидается заполнение из Smartica.ai..."></textarea>
+          </div>
+          <div class="mis-field-group">
+            <label for="field_anamnesis">Анамнез заболевания</label>
+            <textarea id="field_anamnesis" class="mis-field" data-field-id="anamnesis_morbi" rows="2" placeholder="Поле ЭМК пусто — ожидается заполнение из Smartica.ai..."></textarea>
+          </div>
+          <div class="mis-field-group">
+            <label for="field_objective">Объективный статус</label>
+            <textarea id="field_objective" class="mis-field" data-field-id="status_praesens" rows="3" placeholder="Поле ЭМК пусто — ожидается заполнение из Smartica.ai..."></textarea>
+          </div>
+          <div class="mis-field-group">
+            <label for="field_diagnosis">Предварительный диагноз (МКБ-10)</label>
+            <textarea id="field_diagnosis" class="mis-field" data-field-id="diagnosis_mkb10" rows="2" placeholder="Поле ЭМК пусто — ожидается заполнение из Smartica.ai..."></textarea>
+          </div>
+          <div class="mis-field-group">
+            <label for="field_plan">План обследования и лечения</label>
+            <textarea id="field_plan" class="mis-field" data-field-id="recommendations" rows="3" placeholder="Поле ЭМК пусто — ожидается заполнение из Smartica.ai..."></textarea>
+          </div>
+        </form>
+
+        <div class="orders-section">
+          <h3>Созданные направления (FM_DIR / PATDIREC)</h3>
+          <div id="misOrdersList" class="orders-box">Направления не созданы</div>
+        </div>
+      </article>
+
+      <!-- 2. Центральная колонка: Модуль интеграции -->
+      <article class="pane pane-bridge">
+        <header class="pane-header">
+          <h2>Модуль интеграции (на стороне клиники)</h2>
+          <div class="step-badges">
+            <span id="stepBadge1" class="step-badge">1. Launch Pull</span>
+            <span id="stepBadge2" class="step-badge">2. Service Requests</span>
+            <span id="stepBadge3" class="step-badge">3. Versions</span>
+          </div>
+        </header>
+
+        <div class="bridge-controls">
+          <button id="btnSyncCatalog" class="btn-sm" type="button">PUT /service-requests/catalog (выгрузить прайс FM_SERV)</button>
+          <button id="btnPollReady" class="btn-accent" type="button" disabled>2. Опросить GET /encounters?status=ready → Pull → Ack</button>
+        </div>
+
+        <div class="log-wrapper">
+          <div class="log-header">Журнал Outbound HTTPS &amp; SQL-операций</div>
+          <div id="httpLogList" class="http-log-list"></div>
+        </div>
+      </article>
+
+      <!-- 3. Правая колонка: Smartica.ai -->
+      <article class="pane pane-smartica">
+        <header class="pane-header">
+          <div class="smartica-bar">
+            <div id="smarticaUrlBar" class="url-bar">Ожидание одноразовой ссылки launch_url...</div>
+            <span id="smarticaStatusBadge" class="status-pill">Idle</span>
+          </div>
+        </header>
+
+        <div class="pane-actions">
+          <button id="btnSimulateDictation" class="btn-primary" type="button" disabled>Продиктовать приём врачом (симуляция аудио)</button>
+        </div>
+
+        <div class="smartica-section">
+          <h3>Транскрипт приёма (ASR)</h3>
+          <div id="transcriptBox" class="transcript-box">Нажмите «Заполнить голосом в Smartica.ai» в карточке Медиалога, чтобы передать шаблон и открыть сессию.</div>
+        </div>
+
+        <div class="smartica-section">
+          <h3>Структурированный черновик (AI Extraction)</h3>
+          <div id="smarticaDraftPreview" class="draft-preview"></div>
+        </div>
+
+        <div id="suggestionsBox" class="suggestions-box is-hidden">
+          <h3>Рекомендованные направления по прайсу клиники</h3>
+          <div id="suggestionsItems"></div>
+          <button id="btnCommitServices" class="btn-success" type="button">Создать выбранные направления в МИС (POST .../commit)</button>
+        </div>
+      </article>
+    </section>
+
+    <!-- Инженерная архитектура и дорожная карта -->
+    <section class="arch-section" aria-label="Архитектура интеграции и сроки">
+      <div class="arch-tabs" role="tablist">
+        <button class="arch-tab-btn is-active" data-arch="sql" type="button" role="tab">Интеграция с БД и формами Медиалога 7.11 / 8.x</button>
+        <button class="arch-tab-btn" data-arch="stand" type="button" role="tab">Тестовый стенд МИС и безопасность</button>
+        <button class="arch-tab-btn" data-arch="roadmap" type="button" role="tab">Сроки по 3 сценариям и сопровождение</button>
+      </div>
+
+      <div id="arch-sql" class="arch-panel is-active">
+        <div class="arch-grid">
+          <div class="arch-card">
+            <h3>1. Чтение и запись протоколов ЭМК (DATA_* / EMR)</h3>
+            <p>В МИС «Медиалог» 7.11 и 8.x пользовательские поля форм осмотра хранятся в таблицах вида <code>DATA_*</code> (привязаны к <code>PATDIREC_ID</code> и <code>MEDECINS_ID</code>). Коннектор считывает структуру активного шаблона и маппит поля <code>complaints</code>, <code>anamnesis_morbi</code>, <code>status_praesens</code>, <code>diagnosis_mkb10</code>, <code>recommendations</code> через параметризованные запросы <code>pyodbc</code> / <code>ODBC Driver 17 for SQL Server</code>.</p>
+          </div>
+          <div class="arch-card">
+            <h3>2. Прайс-лист и направления (FM_SERV / FM_DIR / PATDIREC)</h3>
+            <p>Синхронизация каталога услуг выполняется из таблицы <code>FM_SERV</code> (код услуги, наименование, стоимость, профиль) методом <code>PUT /service-requests/catalog</code>. При подтверждении врачом (<code>POST .../commit</code>) коннектор создаёт записи направлений в <code>FM_DIR</code> и связывает их с текущим визитом в <code>PATDIREC</code> с возвратом <code>mis_order_id</code>.</p>
+          </div>
+          <div class="arch-card">
+            <h3>3. Версионирование правок врача</h3>
+            <p>При нажатии «Сохранить карту в Медиалоге» вычисляется diff между AI-черновиком (<code>source: smartica</code>) и финальным текстом врача в полях формы. Итоговая версия отправляется в <code>POST /encounters/{id}/versions</code> для дообучения моделей и аудита качества.</p>
+          </div>
+        </div>
+      </div>
+
+      <div id="arch-stand" class="arch-panel">
+        <div class="arch-grid">
+          <div class="arch-card">
+            <h3>Outbound-only архитектура без входящих портов</h3>
+            <p>Модуль работает внутри контура клиники как Windows Service и инициирует только исходящие HTTPS-соединения (TLS 1.2+) к облачному API Smartica.ai. Открытие входящих портов на межсетевом экране или публикация БД Медиалога в интернет не требуются.</p>
+          </div>
+          <div class="arch-card">
+            <h3>Локальная очередь отказоустойчивости (SQLite)</h3>
+            <p>Все исходящие события (<code>ack</code>, <code>commit</code>, <code>versions</code>) буферизуются в локальной SQLite-очереди с экспоненциальным backoff при временной потере связи с интернетом. Идемпотентность обеспечивается ключами <code>encounter_id</code> и <code>idempotency_key</code>.</p>
+          </div>
+          <div class="arch-card">
+            <h3>Тестовый стенд МИС «Медиалог»</h3>
+            <p>Для отладки используется изолированный тестовый контур MS SQL Server с обезличенными шаблонами <code>DATA_*</code> и справочником <code>FM_SERV</code>. Кнопка запуска в интерфейсе Медиалога настраивается через встроенный скрипт формы (вызов локального HTTP-хендлера или CLI-обёртки).</p>
+          </div>
+        </div>
+      </div>
+
+      <div id="arch-roadmap" class="arch-panel">
+        <div class="arch-grid">
+          <div class="arch-card">
+            <h3>Этап 1 (4–5 рабочих дней): Сценарий 1 — Launch Pull</h3>
+            <p>Развёртывание Windows-сервиса, настройка ODBC-подключения к тестовой БД Медиалога, реализация <code>POST /encounters/launch</code>, polling <code>GET /encounters?status=ready</code>, запись в <code>DATA_*</code> и подтверждение <code>ack</code>.</p>
+          </div>
+          <div class="arch-card">
+            <h3>Этап 2 (3–4 рабочих дня): Сценарий 2 — Направления</h3>
+            <p>Выгрузка прайса из <code>FM_SERV</code> в <code>PUT /service-requests/catalog</code>, получение AI-подборок, создание направлений в <code>FM_DIR</code> / <code>PATDIREC</code> и подтверждение <code>POST .../commit</code>.</p>
+          </div>
+          <div class="arch-card">
+            <h3>Этап 3 (2–3 рабочих дня): Сценарий 3 — Версии и прод</h3>
+            <p>Фиксация правок врача в <code>POST /encounters/{id}/versions</code>, нагрузочное тестирование, перенос на боевой сервер клиники и передача регламента сопровождения. Полный цикл по 3 сценариям: <strong>10–12 рабочих дней</strong>.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div id="toastContainer" class="toast-container" aria-live="polite"></div>
+</body>
+</html>
